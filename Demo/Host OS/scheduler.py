@@ -1,91 +1,129 @@
-import paramiko
-import json
-import xgboost as xgb
-
-KALI_IP = "10.104.51.145"
-KALI_USER = "kali"
-
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-ssh.connect(
-    hostname="10.104.51.145",
-    username="kali",
-    password="kali"
-)
-
-# ==========================================
-# STEP 1: COLLECT KALI RESOURCE INFORMATION
-# ==========================================
-
-stdin, stdout, stderr = ssh.exec_command(
-    "python3 ~/Project/resource_agent.py"
-)
-
-output = stdout.read().decode().strip()
-
-resources = json.loads(output)
-
-print("\nKali Resource Information")
-print("-------------------------")
-print("CPU      :", resources["cpu_percent"], "%")
-print("Memory   :", resources["memory_percent"], "%")
-print("Sent     :", resources["network_sent_mb"], "MB")
-print("Received :", resources["network_recv_mb"], "MB")
+import requests
 
 
-# ==========================================
-# STEP 2: PREPARE XGBOOST FEATURES
-# ==========================================
+# =========================
+# WORKERS
+# =========================
 
-network = (
-    resources["network_sent_mb"] +
-    resources["network_recv_mb"]
-)
+workers = [
+    {
+        "name": "Kali",
+        "url": "http://10.96.208.145:5000"
+    },
 
-features = [[
-    resources["cpu_percent"],
-    resources["memory_percent"],
-    network
-]]
-
-
-# ==========================================
-# STEP 3: XGBOOST PREDICTION
-# ==========================================
-
-model = xgb.XGBRegressor()
-
-# Load your trained model here
-# model.load_model("xgboost_model.json")
-
-# prediction = model.predict(features)
-
-# Temporary demonstration
-prediction = 1
-
-print("\nXGBoost Decision:", prediction)
+    {
+        "name": "Windows",
+        "url": "http://10.96.208.144:5000"
+    }
+]
 
 
-# ==========================================
-# STEP 4: EXECUTE TASK ON KALI
-# ==========================================
+# =========================
+# GET INFORMATION
+# =========================
 
-if prediction == 1:
+def get_info(worker):
 
-    print("\nExecuting task on Kali...")
+    try:
 
-    stdin, stdout, stderr = ssh.exec_command(
-        "bash ~/Project/task.sh"
+        response = requests.get(
+            worker["url"] + "/info",
+            timeout=3
+        )
+
+        return response.json()
+
+    except:
+
+        return None
+
+
+# =========================
+# FIND BEST MACHINE
+# =========================
+
+def find_best_worker():
+
+    best_worker = None
+    best_score = 999
+
+    for worker in workers:
+
+        info = get_info(worker)
+
+        if info is None:
+
+            print(worker["name"], "OFFLINE")
+            continue
+
+        print(
+            worker["name"],
+            "| OS:", info["os"],
+            "| CPU:", info["cpu"], "%",
+            "| RAM:", info["memory"], "%"
+        )
+
+        # Simple scheduling score
+        score = info["cpu"] + info["memory"]
+
+        if score < best_score:
+
+            best_score = score
+            best_worker = worker
+
+    return best_worker
+
+
+# =========================
+# RUN TASK
+# =========================
+
+def run_task(worker, command):
+
+    print("\nRunning task on", worker["name"])
+
+    response = requests.post(
+
+        worker["url"] + "/run",
+
+        json={
+            "command": command
+        },
+
+        timeout=60
     )
 
-    result = stdout.read().decode()
+    result = response.json()
 
-    print(result)
+    print("\nOUTPUT:")
+    print(result["output"])
+
+    if result["error"]:
+        print("\nERROR:")
+        print(result["error"])
+
+
+# =========================
+# MAIN
+# =========================
+
+print("\nChecking workers...\n")
+
+worker = find_best_worker()
+
+
+if worker is None:
+
+    print("\nNo worker available.")
 
 else:
 
-    print("\nKali was not selected.")
+    print(
+        "\nSelected:",
+        worker["name"]
+    )
 
-
-ssh.close()
+    run_task(
+        worker,
+        "python3 --version"
+    )
