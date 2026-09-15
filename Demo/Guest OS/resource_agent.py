@@ -1,16 +1,80 @@
+from flask import Flask, request, jsonify
 import psutil
-import json
+import platform
+import subprocess
 
-cpu = psutil.cpu_percent(interval=1)
-memory = psutil.virtual_memory().percent
+app = Flask(__name__)
 
-net = psutil.net_io_counters()
 
-data = {
-    "cpu_percent": cpu,
-    "memory_percent": memory,
-    "network_sent_mb": round(net.bytes_sent / (1024 * 1024), 2),
-    "network_recv_mb": round(net.bytes_recv / (1024 * 1024), 2)
-}
+# =========================
+# SYSTEM INFORMATION
+# =========================
 
-print(json.dumps(data))
+@app.route("/info")
+def info():
+
+    return jsonify({
+        "os": platform.system(),
+        "cpu": psutil.cpu_percent(interval=1),
+        "memory": psutil.virtual_memory().percent
+    })
+
+
+# =========================
+# EXECUTE TASK.SH
+# =========================
+
+@app.route("/run", methods=["POST"])
+def run_task():
+
+    print("[+] Task received")
+
+    try:
+
+        result = subprocess.run(
+            ["bash", "/home/kali/Project/task.sh"],
+            capture_output=True,
+            text=True
+        )
+
+        print("[+] task.sh executed")
+
+        print("[+] Output:")
+        print(result.stdout)
+
+        print("[+] Error:")
+        print(result.stderr)
+
+        return jsonify({
+
+            "success": result.returncode == 0,
+
+            "output": result.stdout,
+
+            "error": result.stderr,
+
+            "return_code": result.returncode
+
+        })
+
+    except Exception as e:
+
+        print("[!] Error:", e)
+
+        return jsonify({
+
+            "success": False,
+
+            "error": str(e)
+
+        }), 500
+
+
+# =========================
+# SERVER
+# =========================
+
+app.run(
+    host="0.0.0.0",
+    port=5000
+)
