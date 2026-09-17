@@ -1,6 +1,1 @@
-sudo apt update && sudo apt install flatpak -y && flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo && flatpak install flathub org.blender.Blender -y
-
-flatpak run org.blender.Blender
-
-
-ffmpeg -start_number 21 -framerate 30 -i %04d.png -c:v libx264 -pix_fmt yuv420p output.mp4
+ffmpeg -start_number 1 -framerate 30 -i %04d.png -c:v libx264 -pix_fmt yuv420p output.mp4
