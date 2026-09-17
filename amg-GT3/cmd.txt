@@ -1,0 +1,3 @@
+sudo apt update && sudo apt install flatpak -y && flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo && flatpak install flathub org.blender.Blender -y
+
+flatpak run org.blender.Blender
